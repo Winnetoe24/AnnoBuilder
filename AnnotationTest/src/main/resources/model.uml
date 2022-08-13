@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Diagram>
+  <ID>JAVA</ID>
+  <OriginalElement>C:/Code/AnnoBuilder/AnnotationTest/src/main</OriginalElement>
+  <nodes>
+    <node x="-250.0" y="-40.0">de.alexander.brand.Auto</node>
+    <node x="0.0" y="0.0">de.alexander.brand.Person</node>
+  </nodes>
+  <notes />
+  <edges />
+  <settings layout="Hierarchic" zoom="1.0" showDependencies="false" x="330.0" y="214.5" />
+  <SelectedNodes>
+    <node>de.alexander.brand.Auto</node>
+  </SelectedNodes>
+  <Categories />
+  <SCOPE>All</SCOPE>
+  <VISIBILITY>private</VISIBILITY>
+</Diagram>
+
