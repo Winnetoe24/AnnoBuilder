@@ -32,12 +32,12 @@ public class WriteUtils {
                 .build();
     }
 
-    public static MethodSpec generateAddMethod(String methodSuffix, String name, TypeMirror typeMirror, ClassName constructor, String parameterName, ClassName returnType) {
+    public static MethodSpec generateAddMethod(String methodSuffix, String name, TypeMirror typeMirror, TypeName constructor, String parameterName, ClassName returnType) {
         return MethodSpec.methodBuilder("add"+methodSuffix)
                 .addParameter(TypeName.get(typeMirror),parameterName)
                 .addModifiers(Modifier.PUBLIC)
                 .beginControlFlow("if (this."+name+" == null)")
-                .addCode("this."+name+" = new $T<>();\n",constructor)
+                .addCode("this."+name+" = new $T();\n",constructor)
                 .endControlFlow()
                 .addCode("this."+name+".add("+parameterName+");\n")
                 .addCode("return this;")

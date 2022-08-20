@@ -1,6 +1,6 @@
 import de.alexander.brand.Person;
 import de.alexander.brand.annobuilder.prozessor.WriteUtils;
-import de.annoBuilder.AutoBuilder;
+import de.hello.main.AutoBuilder;
 import org.builder.PersonBuilder;
 
 import javax.lang.model.element.TypeElement;

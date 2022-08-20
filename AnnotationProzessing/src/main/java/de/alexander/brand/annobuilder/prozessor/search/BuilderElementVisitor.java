@@ -1,4 +1,4 @@
-package de.alexander.brand.annobuilder.prozessor;
+package de.alexander.brand.annobuilder.prozessor.search;
 
 import de.alexander.brand.annobuilder.annotation.Builder;
 
@@ -13,7 +13,7 @@ import static de.alexander.brand.annobuilder.prozessor.TypeUtils.getClassName;
 /**
  * Generiert {@link BuilderParameter}
  */
-class BuilderElementVisitor implements ElementVisitor<Set<BuilderParameter>, BuilderParameter> {
+public class BuilderElementVisitor implements ElementVisitor<Set<BuilderParameter>, BuilderParameter> {
 
     @Override
     public Set<BuilderParameter> visit(Element e, BuilderParameter builderParameter) {
@@ -75,7 +75,7 @@ class BuilderElementVisitor implements ElementVisitor<Set<BuilderParameter>, Bui
 
         if (modifiers.contains(Modifier.FINAL)) {
             builderParameter.constructors.removeIf(executableElement -> !executableElement.getParameters().contains(e));
-            builderParameter.finalArgs.add(e);
+            builderParameter.constructorArgs.add(e);
         }
         if (modifiers.contains(Modifier.PUBLIC)) {
             builderParameter.publicArgs.add(e);
@@ -91,9 +91,9 @@ class BuilderElementVisitor implements ElementVisitor<Set<BuilderParameter>, Bui
                     }
                 }
                 builderParameter.unmatchedSetters.remove(element);
-                builderParameter.privateArgsToSetter.put(e, element);
+                builderParameter.argsToSetter.put(e, element);
             } else {
-                builderParameter.privateArgsToSetter.put(e, null);
+                builderParameter.argsToSetter.put(e, null);
             }
         }
         return set;
@@ -102,7 +102,7 @@ class BuilderElementVisitor implements ElementVisitor<Set<BuilderParameter>, Bui
     @Override
     public Set<BuilderParameter> visitExecutable(ExecutableElement e, BuilderParameter builderParameter) {
         if (e.getKind() == ElementKind.CONSTRUCTOR) {
-            if (conatainsAllParamter(e, builderParameter.finalArgs)) {
+            if (conatainsAllParamter(e, builderParameter.constructorArgs)) {
                 builderParameter.constructors.add(e);
             }
         } else if (e.getKind() == ElementKind.METHOD) {
@@ -116,9 +116,9 @@ class BuilderElementVisitor implements ElementVisitor<Set<BuilderParameter>, Bui
             String s = e.getSimpleName().toString();
             if (s.startsWith("set")) {
                 String variableName = Character.toLowerCase(s.charAt(3)) + s.substring(4);
-                for (VariableElement variableElement : builderParameter.privateArgsToSetter.keySet()) {
+                for (VariableElement variableElement : builderParameter.argsToSetter.keySet()) {
                     if (variableElement.getSimpleName().contentEquals(variableName) && variableElement.asType().equals(e.getParameters().get(0).asType())) {
-                        builderParameter.privateArgsToSetter.put(variableElement, e);
+                        builderParameter.argsToSetter.put(variableElement, e);
                     }
                 }
             }

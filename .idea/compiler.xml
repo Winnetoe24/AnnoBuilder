@@ -15,6 +15,7 @@
         <processorPath useClasspath="false">
           <entry name="$PROJECT_DIR$/AnnotationProzessing/target/classes" />
           <entry name="$MAVEN_REPOSITORY$/com/squareup/javapoet/1.13.0/javapoet-1.13.0.jar" />
+          <entry name="$MAVEN_REPOSITORY$/org/projectlombok/lombok/1.18.24/lombok-1.18.24.jar" />
         </processorPath>
         <module name="AnnotationTest" />
       </profile>

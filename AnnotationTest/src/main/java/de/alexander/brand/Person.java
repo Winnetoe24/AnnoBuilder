@@ -4,6 +4,7 @@ import de.alexander.brand.annobuilder.annotation.Builder;
 import lombok.Setter;
 import lombok.ToString;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Builder(packageString = "org.builder")
@@ -17,7 +18,9 @@ public class Person {
 
 
     public List<String> bekannte;
+    public ArrayList<Integer> glückszahlen;
     private long lang;
+    public TestListe<Person> verwandte;
 
     public Person(int zahl, String finalerName) {
         this.zahl = zahl;
