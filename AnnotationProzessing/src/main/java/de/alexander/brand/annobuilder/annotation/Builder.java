@@ -18,13 +18,7 @@ public @interface Builder {
 
     String packageString() default CONFIG_ID;
 
-    /**
-     * Wenn true wird der ValueHandlingMode von {@link ValueHandlingMode#ALWAYS_SET} auf {@link ValueHandlingMode#ONLY_SET_WHEN_SET} geändert.
-     * Kann auch von der Konfiguration auf true gesetzt werden.
-     * {@link ValueHandling} kann die Einstellung für einzelnde Felder überschreiben
-     * @return true, wenn der ValueHandlingMode geändert werden soll
-     */
-    boolean onlySetWhenSet() default false;
+    ValueHandlingMode mode() default ValueHandlingMode.ALWAYS_SET;
 
     /**
      * Deklariert ein Feld als Parameter.

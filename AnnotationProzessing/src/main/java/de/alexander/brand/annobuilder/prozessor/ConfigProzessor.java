@@ -1,6 +1,7 @@
 package de.alexander.brand.annobuilder.prozessor;
 
 import com.squareup.javapoet.ClassName;
+import lombok.Getter;
 
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.tools.StandardLocation;
@@ -17,12 +18,16 @@ import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.LinkedBlockingQueue;
 
 
+@Getter
 public class ConfigProzessor {
 
     Map<ClassName, ClassName> collectionConstructorMap = new HashMap<>();
 
     private final String packageString;
 
+    private final String addMethodSuffix;
+    private final String defaultProvider;
+    private final ValueHandlingMode valueHandlingMode;
 
     public ConfigProzessor(ProcessingEnvironment processingEnvironment) {
 
@@ -48,6 +53,9 @@ public class ConfigProzessor {
             //Ignored
         }
         packageString = properties.getProperty("package", "de.builder");
+        addMethodSuffix = properties.getProperty("addMethodSuffix","$N");
+        defaultProvider = properties.getProperty("provider",null);
+        valueHandlingMode = ValueHandlingMode.valueOf(properties.getProperty("valueHandlingMode",ValueHandlingMode.ALWAYS_SET.name()));
         System.out.println(packageString);
         String collectionClassMap = properties.getProperty("collectionClassMap");
         if (collectionClassMap == null) {
@@ -84,11 +92,11 @@ public class ConfigProzessor {
         System.out.println("LIst:"+collectionConstructorMap.get(ClassName.get(List.class)));
     }
 
-    public Map<ClassName, ClassName> getCollectionConstructorMap() {
-        return collectionConstructorMap;
-    }
 
-    public String getPackageString() {
-        return packageString;
+    public String getAddMethodSuffix(String variableName) {
+        if (variableName.endsWith("s")) {
+            variableName = variableName.substring(0, variableName.length()-1);
+        }
+        return addMethodSuffix.replace("$N",variableName);
     }
 }

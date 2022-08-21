@@ -2,9 +2,13 @@ package de.alexander.brand.annobuilder.prozessor;
 
 import com.google.auto.service.AutoService;
 import com.squareup.javapoet.*;
+import com.sun.source.doctree.SerialTree;
 import de.alexander.brand.annobuilder.annotation.Builder;
+import de.alexander.brand.annobuilder.prozessor.build.*;
 import de.alexander.brand.annobuilder.prozessor.search.BuilderElementVisitor;
-import de.alexander.brand.annobuilder.prozessor.search.BuilderParameter;
+import de.alexander.brand.annobuilder.prozessor.search.SearchParameter;
+import de.alexander.brand.annobuilder.prozessor.search.SearchVariable;
+import org.checkerframework.checker.units.qual.A;
 
 import javax.annotation.processing.*;
 import javax.lang.model.element.*;
@@ -12,14 +16,12 @@ import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.MirroredTypeException;
 import javax.lang.model.type.TypeMirror;
 import java.io.IOException;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import static de.alexander.brand.annobuilder.annotation.Builder.CONFIG_ID;
 import static de.alexander.brand.annobuilder.prozessor.TypeUtils.conatainsAllParamter;
+import static de.alexander.brand.annobuilder.prozessor.TypeUtils.containsVariable;
 
 @SupportedAnnotationTypes("de.alexander.brand.annobuilder.annotation.Builder")
 @AutoService(Processor.class)
@@ -36,38 +38,38 @@ public class BuilderProzessor extends AbstractProcessor {
     @Override
     public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
         Set<? extends Element> rootE = roundEnv.getRootElements();
-        Set<BuilderParameter> builderParameters = new HashSet<>();
+        Set<SearchParameter> searchParameters = new HashSet<>();
         for (Element e : rootE) {
-            builderParameters.addAll(e.accept(new BuilderElementVisitor(), null));
+            searchParameters.addAll(e.accept(new BuilderElementVisitor(configProzessor, processingEnv.getTypeUtils()), null));
         }
 
 
-        for (BuilderParameter builderParameter : builderParameters) {
-            if (builderParameter == null) continue;
+        for (SearchParameter searchParameter : searchParameters) {
+            if (searchParameter == null) continue;
             try {
-                String packageString = builderParameter.getBuilder().packageString();
+                String packageString = searchParameter.getBuilder().packageString();
                 if (packageString.equals(CONFIG_ID)) {
                     packageString = configProzessor.getPackageString();
                 }
 
                 Filer filer = processingEnv.getFiler();
 
-                ClassName className = ClassName.get(packageString, builderParameter.getClassName());
-                TypeSpec.Builder classBuilder = TypeSpec.classBuilder(builderParameter.getClassName());
+                ClassName className = ClassName.get(packageString, searchParameter.getClassName());
+                TypeSpec.Builder classBuilder = TypeSpec.classBuilder(searchParameter.getClassName());
 
 
                 Set<VariableElement> variableElements = new HashSet<>();
-                variableElements.addAll(builderParameter.getConstructorArgs());
-                variableElements.addAll(builderParameter.getPublicArgs());
-                variableElements.addAll(builderParameter.getArgsToSetter().keySet());
+                variableElements.addAll(searchParameter.getConstructorArgs());
+                variableElements.addAll(searchParameter.getPublicArgs());
+                variableElements.addAll(searchParameter.getArgsToSetter().keySet());
 
                 for (VariableElement variableElement : variableElements) {
                     classBuilder.addField(WriteUtils.generateArgument(variableElement));
                 }
 
                 Set<VariableElement> elementsInBuildFunktion = new HashSet<>();
-                elementsInBuildFunktion.addAll(builderParameter.getConstructorArgs());
-                elementsInBuildFunktion.addAll(builderParameter.getArgsToSetter().entrySet().stream()
+                elementsInBuildFunktion.addAll(searchParameter.getConstructorArgs());
+                elementsInBuildFunktion.addAll(searchParameter.getArgsToSetter().entrySet().stream()
                         .filter(variableElementExecutableElementEntry -> variableElementExecutableElementEntry.getValue() == null)
                         .map(Map.Entry::getKey)
                         .collect(Collectors.toList()));
@@ -109,7 +111,7 @@ public class BuilderProzessor extends AbstractProcessor {
                 }
 
                 //Build Method
-                printBuildMethod(classBuilder, className, elementsInBuildFunktion, builderParameter);
+                printBuildMethod(classBuilder, className, elementsInBuildFunktion, searchParameter);
 
                 JavaFile build = JavaFile
                         .builder(packageString, classBuilder
@@ -128,14 +130,115 @@ public class BuilderProzessor extends AbstractProcessor {
         return true;
     }
 
-    private void printBuildMethod(TypeSpec.Builder builder, ClassName className, Set<VariableElement> elementsInBuildFunktion, BuilderParameter builderParameter) {
+    /**
+     * Verfizier das die SearchParameter keine falschen Eingaben enthalten. Fehler können beim Mapping trotzdem entstehen
+     * @param searchParameter
+     */
+    private void verify(SearchParameter searchParameter) {
+        searchParameter.getSearchVariables().stream()
+                .filter(searchVariable -> searchVariable.getCollectionArgs() != null)
+                .forEach(searchVariable -> {
+                    if (searchVariable.getCollectionArgs().getImplementation() == null)
+                        throw new AnnotationProcessingException("Für die Variable "+searchVariable.getVariableName()+" in "+searchParameter.getClassName().simpleName()+" wurde keine Implementation gefunden. Siehe @CollectionProperties");
+                });
+    }
+
+    /**
+     * Mapped die SearchParameter zu einem BuildPlan.
+     * @param searchParameter
+     * @return
+     */
+    private BuildPlan toBuildPlan(SearchParameter searchParameter) {
+
+        Set<Variable> variables = new HashSet<>();
+        searchParameter.getSearchVariables().forEach(searchVariable -> variables.add(toVariable(searchVariable)));
+
+        Set<WithMethod> withMethods = new HashSet<>();
+        searchParameter.getSearchVariables().forEach(searchVariable -> {
+            if (searchVariable.getCollectionArgs() != null && !searchVariable.getCollectionArgs().isHasWithMethod()) return;
+            withMethods.add(new WithMethod(toVariable(searchVariable)));
+        });
+
+        Set<AddMethod> addMethods = new HashSet<>();
+        searchParameter.getSearchVariables()
+                .stream()
+                .filter(searchVariable -> searchVariable.getCollectionArgs() != null)
+                .forEach(searchVariable -> {
+                    SearchVariable.CollectionArgs collectionArgs = searchVariable.getCollectionArgs();
+                    addMethods.add(new AddMethod(toVariable(searchVariable), collectionArgs.getMethodName(), collectionArgs.getParameterName(), collectionArgs.getImplementation(), collectionArgs.getType()));
+                });
+
+
+
+        Set<SearchVariable> konstruktorParameter = searchParameter.getSearchVariables().stream()
+                .filter(SearchVariable::isIncludeInConstructor)
+                .collect(Collectors.toSet());
+        ExecutableElement constructor = searchParameter.getConstructors().stream()
+                .filter(executableElement -> {
+                    for (SearchVariable searchVariable : konstruktorParameter) {
+                        if (!TypeUtils.containsVariable(searchVariable.getTypeName(), searchVariable.getVariableName(), executableElement.getParameters())) {
+                            return false;
+                        }
+                    }
+                    return true;
+                })
+                .filter(executableElement -> {
+                    for (VariableElement parameter : executableElement.getParameters()) {
+                        if (!containsVariable(parameter, variables))
+                            return false;
+                    }
+                    return true;
+                })
+                .min(Comparator.comparingInt(value -> value.getParameters().size()))
+                .orElseThrow(() -> new AnnotationProcessingException("Kein passender Konstruktor gefunden:" + searchParameter.getClassName().simpleName()));
+        List<Variable> parameterList = new ArrayList<>();
+        constructor.getParameters().forEach(variableElement -> parameterList.add(TypeUtils.getVariable(variableElement, variables)));
+
+        Set<Setter> setter = new HashSet<>();
+        searchParameter.getPossibleSetters().stream()
+                .filter(executableElement -> executableElement.getAnnotation(Builder.SetMethod.class) != null)
+                .forEach(executableElement -> {
+                    Builder.SetMethod setMethod = executableElement.getAnnotation(Builder.SetMethod.class);
+                    String link = setMethod.link();
+                    Set<SearchVariable> collect = searchParameter.getSearchVariables().stream()
+                            .filter(searchVariable -> searchVariable.getVariableName().equals(link))
+                            .filter(searchVariable -> searchVariable.getTypeName().equals(ClassName.get(executableElement.getParameters().get(0).asType())))
+                            .collect(Collectors.toSet());
+                    if (collect.size() != 1) throw new AnnotationProcessingException("Name("+link+") für Variable wurde "+collect.size()+" mal vergeben. Konnte SetMethod.link() nicht verarbeiten: "+executableElement.getSimpleName()+" in "+executableElement.getEnclosingElement().getSimpleName());
+                    collect.forEach(searchVariable -> searchVariable.setSetMethod(executableElement.getSimpleName().toString()));
+                });
+        searchParameter.getSearchVariables().stream()
+                .filter(searchVariable -> !searchVariable.isIncludeInConstructor())
+                .forEach(searchVariable -> {
+                    if ("".equals(searchVariable.getSetMethod())) {
+                        List<ExecutableElement> setters = searchParameter.getPossibleSetters().stream()
+                                .filter(executableElement -> ClassName.get(executableElement.getParameters().get(0).asType()).equals(searchVariable.getTypeName()))
+                                .filter(executableElement -> executableElement.getSimpleName().toString().equals("set"+TypeUtils.toUpperCaseCamelCase(searchVariable.getVariableName())))
+                                .filter(executableElement -> executableElement.getAnnotation(Builder.SetMethod.class) == null)
+                                .collect(Collectors.toList());
+                        if (setters.size() == 0) throw new AnnotationProcessingException("Es wurde kein Setter für "+searchVariable.getVariableName()+" in "+searchParameter.getClassName().simpleName()+" gefunden");
+                        if(setters.size() > 1) System.err.println("Es wurden mehrere mögliche Setter für "+searchVariable.getVariableName()+" in "+searchParameter.getClassName().simpleName()+" gefunden");
+                        searchVariable.setSetMethod(setters.get(0).getSimpleName().toString());
+                    }
+                    setter.add(new Setter(toVariable(searchVariable),searchVariable.getSetMethod()));
+                });
+        return null;
+    }
+
+
+
+    private Variable toVariable(SearchVariable searchVariable) {
+        return new Variable((ClassName) searchVariable.getTypeName(), searchVariable.getVariableName(), searchVariable.getValueHandling(), searchVariable.getProvider());
+    }
+
+    private void printBuildMethod(TypeSpec.Builder builder, ClassName className, Set<VariableElement> elementsInBuildFunktion, SearchParameter searchParameter) {
         ExecutableElement constructor = null;
-        for (ExecutableElement lConstructor : builderParameter.getConstructors()) {
+        for (ExecutableElement lConstructor : searchParameter.getConstructors()) {
             if (conatainsAllParamter(lConstructor, elementsInBuildFunktion) && (constructor == null || lConstructor.getParameters().size() < constructor.getParameters().size())) {
                 constructor = lConstructor;
             }
         }
-        builder.addMethod(WriteUtils.generateBuildMethod(className, elementsInBuildFunktion, constructor, builderParameter.getArgsToSetter(), builderParameter.getPublicArgs()));
+        builder.addMethod(WriteUtils.generateBuildMethod(className, elementsInBuildFunktion, constructor, searchParameter.getArgsToSetter(), searchParameter.getPublicArgs()));
     }
 
     private void printAddMethod(TypeSpec.Builder classBuilder, VariableElement variableElement, ClassName className, Builder.CollectionProperties annotation, TypeName constructor, boolean isAbstract) throws IOException {
@@ -156,6 +259,9 @@ public class BuilderProzessor extends AbstractProcessor {
                 DeclaredType classTypeMirror = (DeclaredType) mte.getTypeMirror();
                 TypeElement classTypeElement = (TypeElement) classTypeMirror.asElement();
                 constructor = ClassName.get(classTypeElement);
+                if (constructor.equals(ClassName.get(Collection.class))) {
+
+                }
             }
         }
         if (constructor == null) {
