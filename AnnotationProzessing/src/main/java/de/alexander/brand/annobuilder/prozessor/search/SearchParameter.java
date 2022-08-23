@@ -3,6 +3,7 @@ package de.alexander.brand.annobuilder.prozessor.search;
 import com.squareup.javapoet.ClassName;
 import de.alexander.brand.annobuilder.prozessor.ValueHandlingMode;
 import lombok.Getter;
+import lombok.Setter;
 import lombok.ToString;
 
 import javax.lang.model.element.ExecutableElement;
@@ -37,6 +38,12 @@ public class SearchParameter {
      * Alle Konstruktoren die gefunden wurden
      */
     private final Set<ExecutableElement> constructors = new HashSet<>();
+
+    /**
+     * Gibt an, ob {@link Setter} an der Klasse steht.
+     */
+    @Setter
+    private boolean setterAnnotation = false;
 
     public SearchParameter(ClassName className, boolean finalInBuildFunktion, String packageString,  ValueHandlingMode valueHandlingMode) {
         this.className = className;

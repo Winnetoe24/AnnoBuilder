@@ -178,7 +178,9 @@ public class BuilderProzessor extends AbstractProcessor {
                                 .filter(executableElement -> executableElement.getSimpleName().toString().equals("set"+TypeUtils.toUpperCaseCamelCase(searchVariable.getVariableName())))
                                 .filter(executableElement -> executableElement.getAnnotation(Builder.SetMethod.class) == null)
                                 .collect(Collectors.toList());
-                        if (setters.size() == 0) throw new AnnotationProcessingException("Es wurde kein Setter für "+searchVariable.getVariableName()+" in "+searchParameter.getClassName().simpleName()+" gefunden");
+                        if (setters.size() == 0){
+                                throw new AnnotationProcessingException("Es wurde kein Setter für "+searchVariable.getVariableName()+" in "+searchParameter.getClassName().simpleName()+" gefunden");
+                        }
                         if(setters.size() > 1) System.err.println("Es wurden mehrere mögliche Setter für "+searchVariable.getVariableName()+" in "+searchParameter.getClassName().simpleName()+" gefunden");
                         searchVariable.setSetMethod(setters.get(0).getSimpleName().toString());
                     }

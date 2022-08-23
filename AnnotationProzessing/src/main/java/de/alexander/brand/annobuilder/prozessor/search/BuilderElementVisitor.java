@@ -6,6 +6,7 @@ import de.alexander.brand.annobuilder.prozessor.AnnotationProcessingException;
 import de.alexander.brand.annobuilder.prozessor.ConfigProzessor;
 import de.alexander.brand.annobuilder.prozessor.TypeUtils;
 import de.alexander.brand.annobuilder.prozessor.ValueHandlingMode;
+import lombok.Setter;
 
 import javax.lang.model.element.*;
 import javax.lang.model.type.DeclaredType;
@@ -68,6 +69,10 @@ public class BuilderElementVisitor implements ElementVisitor<Set<SearchParameter
             Builder annotation = e.getAnnotation(Builder.class);
             if (annotation == null) return set;
             SearchParameter aktive = new SearchParameter(ClassName.get(e), annotation.finalInBuildFunktion(), getPackageString(annotation,e.getQualifiedName().toString().substring(0, e.getQualifiedName().toString().lastIndexOf('.'))), annotation.mode());
+
+            Setter setterAnnotation = e.getAnnotation(Setter.class);
+            aktive.setSetterAnnotation(setterAnnotation != null);
+
             e.getEnclosedElements().forEach(element -> set.addAll(element.accept(this, aktive)));
             set.add(aktive);
         }
@@ -124,11 +129,17 @@ public class BuilderElementVisitor implements ElementVisitor<Set<SearchParameter
         if (e.getAnnotation(Builder.IncludeInConstructor.class) != null) {
             searchVariable.setIncludeInConstructor(true);
         }
+
+
         if (e.getAnnotation(Builder.SetMethod.class) != null) {
             Builder.SetMethod setMethod = e.getAnnotation(Builder.SetMethod.class);
             searchVariable.setSetMethod(setMethod.link());
         } else if (!modifiers.contains(Modifier.PUBLIC)) {
             searchVariable.setSetMethod("");
+            if (e.getAnnotation(Setter.class) != null || searchParameter.isSetterAnnotation()) {
+                searchVariable.setSetMethod("set"+TypeUtils.toUpperCaseCamelCase(searchVariable.getVariableName()));
+                System.out.println("setterAnnotation:"+e);
+            }
         }
 
         if (e.getAnnotation(Builder.CollectionProperties.class) != null) {
