@@ -97,6 +97,7 @@ public class ConfigProzessor {
         if (variableName.endsWith("s")) {
             variableName = variableName.substring(0, variableName.length()-1);
         }
+        System.out.println("variableName:"+variableName);
         return addMethodSuffix.replace("$N",variableName);
     }
 }

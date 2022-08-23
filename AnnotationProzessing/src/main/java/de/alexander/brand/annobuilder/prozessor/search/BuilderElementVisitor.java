@@ -1,6 +1,7 @@
 package de.alexander.brand.annobuilder.prozessor.search;
 
 import com.squareup.javapoet.ClassName;
+import com.squareup.javapoet.TypeName;
 import de.alexander.brand.annobuilder.annotation.Builder;
 import de.alexander.brand.annobuilder.prozessor.AnnotationProcessingException;
 import de.alexander.brand.annobuilder.prozessor.ConfigProzessor;
@@ -26,6 +27,8 @@ public class BuilderElementVisitor implements ElementVisitor<Set<SearchParameter
     private final ConfigProzessor configProzessor;
 
     private final Types typeUtils;
+
+
 
     public BuilderElementVisitor(ConfigProzessor configProzessor, Types typeUtils) {
 
@@ -67,7 +70,7 @@ public class BuilderElementVisitor implements ElementVisitor<Set<SearchParameter
         if (e.getKind().isClass()) {
             Builder annotation = e.getAnnotation(Builder.class);
             if (annotation == null) return set;
-            SearchParameter aktive = new SearchParameter(ClassName.get(e), annotation.finalInBuildFunktion(), annotation.packageString(), annotation.mode());
+            SearchParameter aktive = new SearchParameter(ClassName.get(e), annotation.finalInBuildFunktion(), Builder.CONFIG_ID.equals(annotation.packageString()) ? configProzessor.getPackageString() : annotation.packageString(), annotation.mode());
             e.getEnclosedElements().forEach(element -> set.addAll(element.accept(this, aktive)));
             set.add(aktive);
         }
@@ -117,10 +120,10 @@ public class BuilderElementVisitor implements ElementVisitor<Set<SearchParameter
             typeNameString = typeNameString.substring(i + 1, typeNameString.length() - 1);
             ClassName type = TypeUtils.toClassName(typeNameString);
 
-            String methodSuffix = CONFIG_ID.equals(collectionProperties.addMethodSuffix()) ? configProzessor.getAddMethodSuffix(e.getSimpleName().toString()) : collectionProperties.addMethodSuffix();
+            String methodSuffix = CONFIG_ID.equals(collectionProperties.addMethodSuffix()) ? configProzessor.getAddMethodSuffix(TypeUtils.toUpperCaseCamelCase(e.getSimpleName().toString())) : collectionProperties.addMethodSuffix();
             String parameterName = CONFIG_ID.equals(collectionProperties.parameterName()) ? type.simpleName().toLowerCase(Locale.ROOT) : collectionProperties.parameterName();
 
-
+            System.out.println("methodSuffix:"+methodSuffix);
             ClassName implementation;
             try {
                 if (collectionProperties.implementation() != Collection.class) {
@@ -139,17 +142,29 @@ public class BuilderElementVisitor implements ElementVisitor<Set<SearchParameter
 
 
             searchVariable.setCollectionArgs(new SearchVariable.CollectionArgs("add" + methodSuffix, parameterName, implementation, collectionProperties.hasWithMethod(), type));
-        } else if (!(searchVariable.getTypeName().isPrimitive() || searchVariable.getTypeName().isBoxedPrimitive()) && configProzessor.getCollectionConstructorMap().containsKey(TypeUtils.toClassName(searchVariable.getTypeName().toString()))) {
+
+        } else if (!(searchVariable.getTypeName().isPrimitive() || searchVariable.getTypeName().isBoxedPrimitive()) && (configProzessor.getCollectionConstructorMap().containsKey(TypeUtils.toClassName(searchVariable.getTypeName().toString())) || TypeUtils.isCollection((TypeElement) typeUtils.asElement(e.asType()),typeUtils,configProzessor.getCollectionConstructorMap()))) {
             String typeNameString = e.asType().toString();
             int i = typeNameString.indexOf('<');
             typeNameString = typeNameString.substring(i + 1, typeNameString.length() - 1);
             ClassName type = TypeUtils.toClassName(typeNameString);
 
 
-            String methodSuffix = configProzessor.getAddMethodSuffix(e.getSimpleName().toString());
+            String methodSuffix = configProzessor.getAddMethodSuffix(TypeUtils.toUpperCaseCamelCase(e.getSimpleName().toString()));
             String parameterName = type.simpleName().toLowerCase(Locale.ROOT);
-            ClassName implementation = typeUtils.asElement(e.asType()).getModifiers().contains(Modifier.ABSTRACT) ? configProzessor.getCollectionConstructorMap().get((ClassName) ClassName.get(e.asType())) : (ClassName) ClassName.get(e.asType());
-            searchVariable.setCollectionArgs(new SearchVariable.CollectionArgs("add" + methodSuffix, parameterName, implementation, false, type));
+            ClassName key = TypeUtils.toClassName(e.asType().toString());
+            System.out.println("methodSuffix2:"+methodSuffix);
+
+            if (key != null) {
+                if (typeUtils.asElement(e.asType()).getModifiers().contains(Modifier.ABSTRACT)) {
+                    searchVariable.setCollectionArgs(new SearchVariable.CollectionArgs("add" + methodSuffix, parameterName,  configProzessor.getCollectionConstructorMap().get(key), false, type));
+                } else {
+                        searchVariable.setCollectionArgs(new SearchVariable.CollectionArgs("add" + methodSuffix, parameterName, key, false, type));
+                }
+            }
+        }else {
+
+            System.out.println("TypeUtils isCollection:"+TypeUtils.isCollection((TypeElement) typeUtils.asElement(e.asType()),typeUtils,configProzessor.getCollectionConstructorMap())+" "+e);
         }
 
         if (e.getAnnotation(Builder.Provider.class) != null) {
@@ -166,7 +181,7 @@ public class BuilderElementVisitor implements ElementVisitor<Set<SearchParameter
             Builder.ValueHandling valueHandling = e.getAnnotation(Builder.ValueHandling.class);
             searchVariable.setValueHandling(valueHandling.mode());
         }
-
+        searchParameter.getSearchVariables().add(searchVariable);
         return set;
     }
 
@@ -177,12 +192,14 @@ public class BuilderElementVisitor implements ElementVisitor<Set<SearchParameter
             searchParameter.getConstructors().add(e);
         } else if (e.getKind() == ElementKind.METHOD) {
             if (e.getParameters().size() != 1) {
-                if (e.getAnnotation(Builder.SetMethod.class) != null) throw new AnnotationProcessingException("Methode mit SetMethod-Annotation hat nicht einen Parameter:"+e.getSimpleName()+" in "+e.getEnclosingElement().getSimpleName());
+                if (e.getAnnotation(Builder.SetMethod.class) != null)
+                    throw new AnnotationProcessingException("Methode mit SetMethod-Annotation hat nicht einen Parameter:" + e.getSimpleName() + " in " + e.getEnclosingElement().getSimpleName());
                 return new HashSet<>();
             }
 
             if (e.getModifiers().contains(Modifier.STATIC) || !e.getModifiers().contains(Modifier.PUBLIC)) {
-                if (e.getAnnotation(Builder.SetMethod.class) != null) throw new AnnotationProcessingException("Methode mit SetMethod-Annotation hat falsche Modifier:"+e.getSimpleName()+" in "+e.getEnclosingElement().getSimpleName());
+                if (e.getAnnotation(Builder.SetMethod.class) != null)
+                    throw new AnnotationProcessingException("Methode mit SetMethod-Annotation hat falsche Modifier:" + e.getSimpleName() + " in " + e.getEnclosingElement().getSimpleName());
                 return new HashSet<>();
             }
 

@@ -1,83 +1,104 @@
 package de.alexander.brand.annobuilder.prozessor;
 
 import com.squareup.javapoet.*;
+import de.alexander.brand.annobuilder.prozessor.build.*;
 
 import javax.annotation.processing.ProcessingEnvironment;
-import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
-import javax.lang.model.element.VariableElement;
-import javax.lang.model.type.TypeMirror;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.Set;
-
-import static de.alexander.brand.annobuilder.prozessor.TypeUtils.conatainsAllParamter;
 
 public class WriteUtils {
 
-    public static FieldSpec generateArgument(VariableElement variableElement) {
-        return FieldSpec.builder(TypeName.get(variableElement.asType()),variableElement.getSimpleName().toString())
-                .addModifiers(Modifier.PRIVATE)
-                .build();
+
+
+    public static FieldSpec generateArgument(Variable variable) {
+        FieldSpec.Builder builder = FieldSpec.builder(variable.typeName(), variable.name())
+                .addModifiers(Modifier.PRIVATE);
+        if (variable.valueHandlingMode().equals(ValueHandlingMode.PROVIDE_ON_INIT)) {
+            builder.initializer(variable.provider());
+        }
+        return builder.build();
     }
 
-    public static MethodSpec generateWithMethod(String methodSuffix,String name,TypeMirror typeMirror, ClassName returnType) {
-        return MethodSpec
-                .methodBuilder("with"+methodSuffix)
-                .addParameter(TypeName.get(typeMirror), name)
+    public static FieldSpec generateBooleanFields(Variable variable) {
+        if (variable.valueHandlingMode().equals(ValueHandlingMode.ALWAYS_SET) || variable.valueHandlingMode().equals(ValueHandlingMode.PROVIDE_ON_INIT)) return null;
+        return FieldSpec.builder(TypeName.BOOLEAN, getIsSetName(variable),Modifier.PRIVATE).initializer("false").build();
+    }
+
+    private static String getIsSetName(Variable variable) {
+        return "isSet"+ TypeUtils.toUpperCaseCamelCase(variable.name());
+    }
+
+    public static MethodSpec generateWithMethod(WithMethod withMethod) {
+        MethodSpec.Builder builder = MethodSpec
+                .methodBuilder("with" + TypeUtils.toUpperCaseCamelCase(withMethod.variable().name()))
+                .addParameter(withMethod.variable().typeName(), withMethod.variable().name())
                 .addModifiers(Modifier.PUBLIC)
-                .addCode("this."+name+" = "+name+";\n")
+                .addCode("this." + withMethod.variable().name() + " = " + withMethod.variable().name() + ";\n");
+        if (withMethod.variable().valueHandlingMode().equals(ValueHandlingMode.ONLY_SET_WHEN_SET) || withMethod.variable().valueHandlingMode().equals(ValueHandlingMode.ONLY_PROVIDE_WHEN_NOT_SET)){
+            builder.addCode("this."+getIsSetName(withMethod.variable())+" = true;\n");
+        }
+        return builder
                 .addCode("return this;")
-                .returns(returnType)
+                .returns(withMethod.returnType())
                 .build();
     }
 
-    public static MethodSpec generateAddMethod(String methodSuffix, String name, TypeMirror typeMirror, TypeName constructor, String parameterName, ClassName returnType) {
-        return MethodSpec.methodBuilder("add"+methodSuffix)
-                .addParameter(TypeName.get(typeMirror),parameterName)
+    public static MethodSpec generateAddMethod(AddMethod addMethod) {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder(addMethod.methodName())
+                .addParameter(addMethod.type(), addMethod.parameterName())
                 .addModifiers(Modifier.PUBLIC)
-                .beginControlFlow("if (this."+name+" == null)")
-                .addCode("this."+name+" = new $T();\n",constructor)
+                .beginControlFlow("if (this." + addMethod.variable().name() + " == null)")
+                .addCode("this." + addMethod.variable().name() + " = new $T();\n", addMethod.implementation())
                 .endControlFlow()
-                .addCode("this."+name+".add("+parameterName+");\n")
+                .addCode("this." + addMethod.variable().name() + ".add(" + addMethod.parameterName() + ");\n");
+        if (addMethod.variable().valueHandlingMode().equals(ValueHandlingMode.ONLY_SET_WHEN_SET) || addMethod.variable().valueHandlingMode().equals(ValueHandlingMode.ONLY_PROVIDE_WHEN_NOT_SET)){
+            builder.addCode("this."+getIsSetName(addMethod.variable())+" = true;\n");
+        }
+        return builder
                 .addCode("return this;")
-                .returns(returnType)
+                .returns(addMethod.returnType())
                 .build();
     }
 
-    public static MethodSpec generateBuildMethod(ClassName className, Set<VariableElement> elementsInBuildFunktion,  ExecutableElement constructor, Map<VariableElement, ExecutableElement> privateArgsToSetter, Set<VariableElement> publicArgs) {
-        MethodSpec.Builder build = MethodSpec.methodBuilder("build");
-        int i = 0;
-        String parameterString = "";
-        for (VariableElement variableElement : elementsInBuildFunktion) {
-            build.addParameter( TypeName.get(variableElement.asType()), variableElement.getSimpleName().toString());
-            if (i != 0) parameterString += ", ";
-            parameterString += variableElement.getSimpleName().toString();
-            i++;
+    private static CodeBlock generateConstructor(Constructor constructor) {
+        StringBuilder parameterString = new StringBuilder();
+        for (Variable variable : constructor.parameter()) {
+            if (!parameterString.toString().equals("")) parameterString.append(", ");
+            parameterString.append(variable.name());
         }
-        build.addModifiers(Modifier.PUBLIC);
-        TypeName objectName = TypeName.get(constructor.getEnclosingElement().asType());
-
-
-        build.addCode("$T object = new $T("+parameterString+");\n", objectName, objectName);
-
-        for (VariableElement variableElement : privateArgsToSetter.keySet()) {
-            if (constructor != null && conatainsAllParamter(constructor, Set.of(variableElement))) continue;
-            ExecutableElement executableElement = privateArgsToSetter.get(variableElement);
-            if (executableElement == null) {
-                System.err.println("Konnte Element nicht zuweisen:"+variableElement.getSimpleName());
-                continue;
-            }
-            build.addCode("object."+ executableElement.getSimpleName()+"("+variableElement.getSimpleName()+");\n");
+        return CodeBlock.of("$T object = new $T("+parameterString+");\n", constructor.className(), constructor.className());
+    }
+    private static CodeBlock generateSetter(Setter setter) {
+        CodeBlock.Builder builder = CodeBlock.builder();
+        if (setter.variable().valueHandlingMode().equals(ValueHandlingMode.ONLY_PROVIDE_WHEN_NOT_SET) || setter.variable().valueHandlingMode().equals(ValueHandlingMode.ONLY_SET_WHEN_SET)){
+            builder.beginControlFlow("if (this."+getIsSetName(setter.variable())+")");
         }
+        if (setter.method() == null) {
 
-        for (VariableElement variableElement : publicArgs) {
-            build.addCode("object."+variableElement.getSimpleName()+" = this."+variableElement.getSimpleName()+";\n");
+            builder.add("object."+setter.variable().name()+ " = this."+setter.variable().name()+";\n");
+        }else {
+            builder.add("object."+setter.method()+"(this."+setter.variable().name()+");\n");
         }
+        if (setter.variable().valueHandlingMode().equals(ValueHandlingMode.ONLY_PROVIDE_WHEN_NOT_SET) || setter.variable().valueHandlingMode().equals(ValueHandlingMode.ONLY_SET_WHEN_SET)) {
+            builder.endControlFlow();
+        }
+        return builder.build();
+    }
 
-        build.addCode("return object;");
-        build.returns(objectName);
-        return build.build();
+    public static MethodSpec generateBuildMethod(BuildMethod buildMethod) {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("build");
+
+        builder.addModifiers(Modifier.PUBLIC);
+
+        buildMethod.parameter().forEach(variable -> builder.addParameter(variable.typeName(), variable.name()));
+
+        builder.addCode(generateConstructor(buildMethod.constructor()));
+
+        buildMethod.setter().forEach(setter -> builder.addCode(generateSetter(setter)));
+
+        builder.addCode("return object;");
+        builder.returns(buildMethod.constructor().className());
+        return builder.build();
 
     }
 

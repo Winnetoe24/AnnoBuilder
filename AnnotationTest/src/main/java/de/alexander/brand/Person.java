@@ -1,6 +1,7 @@
 package de.alexander.brand;
 
 import de.alexander.brand.annobuilder.annotation.Builder;
+import de.alexander.brand.annobuilder.prozessor.ValueHandlingMode;
 import lombok.Setter;
 import lombok.ToString;
 
@@ -14,6 +15,8 @@ public class Person {
     private int zahl;
     //TODO @Builder.Default(Object)
     private final String finalerName;
+    @Builder.SetMethod(link = "autoSetzen")
+    @Builder.ValueHandling(mode =  ValueHandlingMode.ONLY_SET_WHEN_SET)
     public Auto auto = new Auto();
 
 
@@ -41,6 +44,10 @@ public class Person {
     }
 
     public void setLang(long lang) {
+
+    }
+
+    public void autoSetzen(Auto auto) {
 
     }
 

@@ -10,6 +10,7 @@ import javax.lang.model.element.Name;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.TypeMirror;
+import javax.lang.model.util.Types;
 import java.util.*;
 
 public class TypeUtils {
@@ -39,6 +40,10 @@ public class TypeUtils {
     }
 
     public static ClassName toClassName(String fullName) {
+        int genericIndex = fullName.indexOf('<');
+        if (genericIndex > -1) {
+            fullName = fullName.substring(0,genericIndex);
+        }
         int l = 2;
         for (int i = fullName.length() - 2; i >= 0; i--) {
             if (fullName.charAt(i) == '.') {
@@ -47,6 +52,7 @@ public class TypeUtils {
             }
         }
         if (l < 2 || l > fullName.length()) return null;
+        System.out.println("fullname:"+fullName);
         return ClassName.get(fullName.substring(0, l - 1), fullName.substring(l));
     }
 
@@ -74,29 +80,25 @@ public class TypeUtils {
 
     public static Variable getVariable(VariableElement variableElement, Set<Variable> variables) {
         for (Variable variable : variables) {
-            if (!variable.className().equals(ClassName.get(variableElement.asType()))) continue;
+            if (!variable.typeName().equals(ClassName.get(variableElement.asType()))) continue;
             if (variable.name().equals(variableElement.getSimpleName().toString())) return variable;
         }
         return null;
     }
 
-    public static TypeName getCollectionName(TypeElement typeElement, ProcessingEnvironment processingEnvironment, Map<ClassName, ClassName> collectionConstructorMap) {
-        if (typeElement == null) return null;
+    public static boolean isCollection(TypeElement typeElement, Types types, Map<ClassName, ClassName> collectionConstructorMap) {
+        if (typeElement == null) return false;
         if (typeElement.toString().startsWith(Collection.class.getCanonicalName())) {
-            return ClassName.get(typeElement);
+            return true;
+        }
+        if (isCollection((TypeElement) types.asElement(typeElement.getSuperclass()), types, collectionConstructorMap)) {
+            return true;
         }
         for (TypeMirror typeMirror : typeElement.getInterfaces()) {
-            TypeName collectionName = getCollectionName((TypeElement) processingEnvironment.getTypeUtils().asElement(typeMirror), processingEnvironment, collectionConstructorMap);
-            if (collectionName != null) {
-
-                ClassName className = ClassName.get(typeElement);
-                if (collectionConstructorMap.containsKey(className)) {
-
-                }
-                return className;
-
-            }
+            boolean isCollection = isCollection((TypeElement) types.asElement(typeMirror), types, collectionConstructorMap);
+            if (isCollection) return true;
         }
-        return null;
+
+        return false;
     }
 }
