@@ -1,7 +1,6 @@
 package de.alexander.brand.annobuilder.prozessor.search;
 
 import com.squareup.javapoet.ClassName;
-import com.squareup.javapoet.TypeName;
 import de.alexander.brand.annobuilder.annotation.Builder;
 import de.alexander.brand.annobuilder.prozessor.AnnotationProcessingException;
 import de.alexander.brand.annobuilder.prozessor.ConfigProzessor;
@@ -12,10 +11,7 @@ import javax.lang.model.element.*;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.MirroredTypeException;
 import javax.lang.model.util.Types;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.Locale;
-import java.util.Set;
+import java.util.*;
 
 import static de.alexander.brand.annobuilder.annotation.Builder.CONFIG_ID;
 
@@ -68,13 +64,35 @@ public class BuilderElementVisitor implements ElementVisitor<Set<SearchParameter
     public Set<SearchParameter> visitType(TypeElement e, SearchParameter searchParameter) {
         Set<SearchParameter> set = new HashSet<>();
         if (e.getKind().isClass()) {
+
             Builder annotation = e.getAnnotation(Builder.class);
             if (annotation == null) return set;
-            SearchParameter aktive = new SearchParameter(ClassName.get(e), annotation.finalInBuildFunktion(), Builder.CONFIG_ID.equals(annotation.packageString()) ? configProzessor.getPackageString() : annotation.packageString(), annotation.mode());
+            SearchParameter aktive = new SearchParameter(ClassName.get(e), annotation.finalInBuildFunktion(), getPackageString(annotation,e.getQualifiedName().toString().substring(0, e.getQualifiedName().toString().lastIndexOf('.'))), annotation.mode());
             e.getEnclosedElements().forEach(element -> set.addAll(element.accept(this, aktive)));
             set.add(aktive);
         }
         return set;
+    }
+
+    private String getPackageString(Builder annotation, String packageName) {
+        String configuredBasePackage = Builder.CONFIG_ID.equals(annotation.packageString()) ? configProzessor.getPackageString() : annotation.packageString();
+
+
+        //Replace other
+        Map<String, String> packageReplacements = configProzessor.getPackageNameReplacements();
+        for (Map.Entry<String, String> entry : packageReplacements.entrySet()) {
+            configuredBasePackage = configuredBasePackage.replace(entry.getKey(), entry.getValue());
+        }
+
+        //Replace $PACKAGE
+        String replace = packageName.replace(configProzessor.getPackageMask() + ".", "");
+        configuredBasePackage = configuredBasePackage.replace("$PACKAGE", replace.replace(configProzessor.getPackageMask(),""));
+
+        //Remove Trailing .
+        if (configuredBasePackage.endsWith(".")) {
+            configuredBasePackage = configuredBasePackage.substring(0, configuredBasePackage.length()-1);
+        }
+        return configuredBasePackage;
     }
 
     @Override
@@ -115,10 +133,7 @@ public class BuilderElementVisitor implements ElementVisitor<Set<SearchParameter
 
         if (e.getAnnotation(Builder.CollectionProperties.class) != null) {
             Builder.CollectionProperties collectionProperties = e.getAnnotation(Builder.CollectionProperties.class);
-            String typeNameString = e.asType().toString();
-            int i = typeNameString.indexOf('<');
-            typeNameString = typeNameString.substring(i + 1, typeNameString.length() - 1);
-            ClassName type = TypeUtils.toClassName(typeNameString);
+            ClassName type = TypeUtils.getGenericClassName(e);
 
             String methodSuffix = CONFIG_ID.equals(collectionProperties.addMethodSuffix()) ? configProzessor.getAddMethodSuffix(TypeUtils.toUpperCaseCamelCase(e.getSimpleName().toString())) : collectionProperties.addMethodSuffix();
             String parameterName = CONFIG_ID.equals(collectionProperties.parameterName()) ? type.simpleName().toLowerCase(Locale.ROOT) : collectionProperties.parameterName();
@@ -144,16 +159,11 @@ public class BuilderElementVisitor implements ElementVisitor<Set<SearchParameter
             searchVariable.setCollectionArgs(new SearchVariable.CollectionArgs("add" + methodSuffix, parameterName, implementation, collectionProperties.hasWithMethod(), type));
 
         } else if (!(searchVariable.getTypeName().isPrimitive() || searchVariable.getTypeName().isBoxedPrimitive()) && (configProzessor.getCollectionConstructorMap().containsKey(TypeUtils.toClassName(searchVariable.getTypeName().toString())) || TypeUtils.isCollection((TypeElement) typeUtils.asElement(e.asType()),typeUtils,configProzessor.getCollectionConstructorMap()))) {
-            String typeNameString = e.asType().toString();
-            int i = typeNameString.indexOf('<');
-            typeNameString = typeNameString.substring(i + 1, typeNameString.length() - 1);
-            ClassName type = TypeUtils.toClassName(typeNameString);
-
+            ClassName type = TypeUtils.getGenericClassName(e);
 
             String methodSuffix = configProzessor.getAddMethodSuffix(TypeUtils.toUpperCaseCamelCase(e.getSimpleName().toString()));
             String parameterName = type.simpleName().toLowerCase(Locale.ROOT);
             ClassName key = TypeUtils.toClassName(e.asType().toString());
-            System.out.println("methodSuffix2:"+methodSuffix);
 
             if (key != null) {
                 if (typeUtils.asElement(e.asType()).getModifiers().contains(Modifier.ABSTRACT)) {

@@ -1,9 +1,6 @@
 import de.alexander.brand.Person;
-import de.alexander.brand.annobuilder.prozessor.WriteUtils;
-import de.hello.main.AutoBuilder;
-import org.builder.PersonBuilder;
-
-import javax.lang.model.element.TypeElement;
+import de.alexander.brand.PersonBuilder;
+import de.alexander.brand.builder.AutoBuilder;
 
 public class BuilderTest {
     public static void main(String[] args) {
@@ -12,7 +9,6 @@ public class BuilderTest {
                         .withLangeNummer(1)
                         .build())
                 .build("Name");
-        System.out.println(person);
 
     }
 }

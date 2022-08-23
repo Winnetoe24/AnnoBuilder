@@ -12,6 +12,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.5.1</version>
                 <configuration>
                     <source>16</source>
                     <target>16</target>
@@ -25,10 +26,6 @@
         <module>AnnotationProzessing</module>
     </modules>
 
-    <properties>
-        <maven.compiler.source>18</maven.compiler.source>
-        <maven.compiler.target>18</maven.compiler.target>
-    </properties>
 
     <dependencies>
         <dependency>

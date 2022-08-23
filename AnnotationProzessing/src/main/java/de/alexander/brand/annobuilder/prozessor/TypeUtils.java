@@ -101,4 +101,11 @@ public class TypeUtils {
 
         return false;
     }
+
+    public static ClassName getGenericClassName(VariableElement e) {
+        String typeNameString = e.asType().toString();
+        int i = typeNameString.indexOf('<');
+        typeNameString = typeNameString.substring(i + 1, typeNameString.length() - 1);
+        return toClassName(typeNameString);
+    }
 }

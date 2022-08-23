@@ -21,9 +21,23 @@ import java.util.concurrent.LinkedBlockingQueue;
 @Getter
 public class ConfigProzessor {
 
-    Map<ClassName, ClassName> collectionConstructorMap = new HashMap<>();
+    private final Map<ClassName, ClassName> collectionConstructorMap = new HashMap<>();
 
+    /**
+     * Beim Setzen des Package des Builders wird bei alle Entries {@code String.replac(key,value)} angewendet.
+     */
+    private final Map<String, String> packageNameReplacements = new HashMap<>();
+
+    /**
+     * Das Package, was für alle Builder genutzt wird, wenn das Package nicht angegeben ist.
+     * $PACKAGE wird mit der Package der Klasse ersetzt
+     */
     private final String packageString;
+
+    /**
+     * Das Package der Klasse für den der Builder erzeugt wird, wird mit dieser Maske gefiltert → {@code String.replace(packageMaske, "")}
+     */
+    private final String packageMask;
 
     private final String addMethodSuffix;
     private final String defaultProvider;
@@ -31,6 +45,41 @@ public class ConfigProzessor {
 
     public ConfigProzessor(ProcessingEnvironment processingEnvironment) {
 
+
+        Properties properties = new Properties();
+        try (InputStream systemResourceAsStream = processingEnvironment.getFiler().getResource(StandardLocation.CLASS_OUTPUT, "", "builder.properties").openInputStream()) {
+            properties.load(systemResourceAsStream);
+        } catch (IOException e) {
+            //Ignored
+        }
+        packageString = properties.getProperty("package", "de.builder");
+        addMethodSuffix = properties.getProperty("addMethodSuffix","$N");
+        defaultProvider = properties.getProperty("provider",null);
+        packageMask = properties.getProperty("packageMask","");
+        valueHandlingMode = ValueHandlingMode.valueOf(properties.getProperty("valueHandlingMode",ValueHandlingMode.ALWAYS_SET.name()));
+
+        initPackageNameReplacements(properties.getProperty("packageNameReplacements"));
+
+        String collectionClassMap = properties.getProperty("collectionClassMap");
+        if (collectionClassMap == null) {
+            System.out.println("No ClassMap Properties found");
+            return;
+        }
+        Properties classMapProperties = new Properties();
+        try (InputStream systemResourceAsStream = processingEnvironment.getFiler().getResource(StandardLocation.CLASS_OUTPUT, "", collectionClassMap).openInputStream()) {
+            classMapProperties.load(systemResourceAsStream);
+        } catch (IOException e) {
+            //Ignored
+        }
+
+        initCollectionConstructorMap(classMapProperties);
+
+
+    }
+
+    /* --- Initialisier --- */
+
+    private void initCollectionConstructorMap(Properties classMapProperties) {
         collectionConstructorMap.put(ClassName.get(List.class), ClassName.get(ArrayList.class));
         collectionConstructorMap.put(ClassName.get(Set.class), ClassName.get(HashSet.class));
         collectionConstructorMap.put(ClassName.get(Collection.class), ClassName.get(ArrayList.class));
@@ -46,30 +95,6 @@ public class ConfigProzessor {
         collectionConstructorMap.put(ClassName.get(Deque.class), ClassName.get(ArrayDeque.class));
         collectionConstructorMap.put(ClassName.get(Queue.class), ClassName.get(ArrayDeque.class));
 
-        Properties properties = new Properties();
-        try (InputStream systemResourceAsStream = processingEnvironment.getFiler().getResource(StandardLocation.CLASS_OUTPUT, "", "builder.properties").openInputStream()) {
-            properties.load(systemResourceAsStream);
-        } catch (IOException e) {
-            //Ignored
-        }
-        packageString = properties.getProperty("package", "de.builder");
-        addMethodSuffix = properties.getProperty("addMethodSuffix","$N");
-        defaultProvider = properties.getProperty("provider",null);
-        valueHandlingMode = ValueHandlingMode.valueOf(properties.getProperty("valueHandlingMode",ValueHandlingMode.ALWAYS_SET.name()));
-        System.out.println(packageString);
-        String collectionClassMap = properties.getProperty("collectionClassMap");
-        if (collectionClassMap == null) {
-            System.out.println("No ClassMap Properties");
-            return;
-        }
-        Properties classMapProperties = new Properties();
-        try (InputStream systemResourceAsStream = processingEnvironment.getFiler().getResource(StandardLocation.CLASS_OUTPUT, "", collectionClassMap).openInputStream()) {
-            classMapProperties.load(systemResourceAsStream);
-        } catch (IOException e) {
-            //Ignored
-        }
-        System.out.println(classMapProperties.stringPropertyNames());
-        System.out.println(properties.stringPropertyNames());
         for (String stringPropertyName : classMapProperties.stringPropertyNames()) {
             ClassName className = TypeUtils.toClassName(stringPropertyName);
             if (className == null) {
@@ -89,7 +114,16 @@ public class ConfigProzessor {
             collectionConstructorMap.put(className, propertyClassName);
             System.out.println(className + ":" + propertyClassName);
         }
-        System.out.println("LIst:"+collectionConstructorMap.get(ClassName.get(List.class)));
+    }
+
+    private void initPackageNameReplacements(String configValue) {
+        if (configValue == null || configValue.isBlank()) return;
+        String[] split = configValue.split(";");
+        for (String entry : split) {
+            String[] pair = entry.split("=");
+            packageNameReplacements.put(pair[0], pair[1]);
+            System.out.println("Pair:"+pair);
+        }
     }
 
 
@@ -100,4 +134,5 @@ public class ConfigProzessor {
         System.out.println("variableName:"+variableName);
         return addMethodSuffix.replace("$N",variableName);
     }
+
 }
