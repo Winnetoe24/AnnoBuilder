@@ -45,6 +45,17 @@ public class SearchParameter {
     @Setter
     private boolean setterAnnotation = false;
 
+    /**
+     * Referenz zum Konstruktor der von {@link lombok.RequiredArgsConstructor} abgeleitet wurde
+     */
+
+    private InferredConstructor requiredArgs = null;
+
+    /**
+     * Referenz zum Konstruktor der von {@link lombok.AllArgsConstructor} abgeleitet wurde
+     */
+    private InferredConstructor allArgs = null;
+
     public SearchParameter(ClassName className, boolean finalInBuildFunktion, String packageString,  ValueHandlingMode valueHandlingMode) {
         this.className = className;
         this.finalInBuildFunktion = finalInBuildFunktion;
@@ -52,5 +63,13 @@ public class SearchParameter {
         this.valueHandlingMode = valueHandlingMode;
     }
 
+    public void setRequiredArgs(InferredConstructor requiredArgs) {
+        this.requiredArgs = requiredArgs;
+        this.constructors.add(requiredArgs);
+    }
 
+    public void setAllArgs(InferredConstructor allArgs) {
+        this.allArgs = allArgs;
+        this.constructors.add(allArgs);
+    }
 }

@@ -2,26 +2,18 @@ package de.alexander.brand.annobuilder.prozessor;
 
 import com.google.auto.service.AutoService;
 import com.squareup.javapoet.*;
-import com.sun.source.doctree.SerialTree;
 import de.alexander.brand.annobuilder.annotation.Builder;
 import de.alexander.brand.annobuilder.prozessor.build.*;
 import de.alexander.brand.annobuilder.prozessor.search.BuilderElementVisitor;
 import de.alexander.brand.annobuilder.prozessor.search.SearchParameter;
 import de.alexander.brand.annobuilder.prozessor.search.SearchVariable;
-import org.checkerframework.checker.units.qual.A;
 
 import javax.annotation.processing.*;
 import javax.lang.model.element.*;
-import javax.lang.model.type.DeclaredType;
-import javax.lang.model.type.MirroredTypeException;
-import javax.lang.model.type.TypeMirror;
 import java.io.IOException;
-import java.time.chrono.IsoEra;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import static de.alexander.brand.annobuilder.annotation.Builder.CONFIG_ID;
-import static de.alexander.brand.annobuilder.prozessor.TypeUtils.conatainsAllParamter;
 import static de.alexander.brand.annobuilder.prozessor.TypeUtils.containsVariable;
 
 @SupportedAnnotationTypes("de.alexander.brand.annobuilder.annotation.Builder")
@@ -42,7 +34,7 @@ public class BuilderProzessor extends AbstractProcessor {
         try {
         Set<SearchParameter> searchParameters = new HashSet<>();
         for (Element e : rootE) {
-            searchParameters.addAll(e.accept(new BuilderElementVisitor(configProzessor, processingEnv.getTypeUtils()), null));
+            searchParameters.addAll(e.accept(new BuilderElementVisitor(configProzessor, processingEnv.getTypeUtils(), processingEnv.getElementUtils()), null));
         }
 
             searchParameters.stream()
@@ -128,9 +120,15 @@ public class BuilderProzessor extends AbstractProcessor {
                 .filter(SearchVariable::isIncludeInConstructor)
                 .collect(Collectors.toSet());
         ExecutableElement constructorElement = searchParameter.getConstructors().stream()
+                .filter(executableElement ->{
+                    System.out.println(executableElement);
+                    System.out.println(executableElement.isDefault());
+
+                    return !executableElement.isDefault() || (searchParameter.getAllArgs() == null &&searchParameter.getRequiredArgs() == null);
+                })
                 .filter(executableElement -> {
                     for (SearchVariable searchVariable : konstruktorParameter) {
-                        if (!TypeUtils.containsVariable(searchVariable.getTypeName(), searchVariable.getVariableName(), executableElement.getParameters())) {
+                        if (!containsVariable(searchVariable.getTypeName(), searchVariable.getVariableName(), executableElement.getParameters())) {
                             return false;
                         }
                     }
