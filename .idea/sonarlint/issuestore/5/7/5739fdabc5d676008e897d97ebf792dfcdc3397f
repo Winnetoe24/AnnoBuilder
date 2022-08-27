@@ -1,0 +1,25 @@
+
+q
+java:S6201)"VReplace this instanceof check and cast with 'instanceof PackageElement packageelement'(­€ëĞûÿÿÿÿ
+k
+java:S6201,"PReplace this instanceof check and cast with 'instanceof TypeElement typeelement'(¨ú–ùÿÿÿÿ
+s
+java:S6201/"XReplace this instanceof check and cast with 'instanceof VariableElement variableelement'(ÎÊ¡‹üÿÿÿÿ
+w
+java:S62012"\Replace this instanceof check and cast with 'instanceof ExecutableElement executableelement'(ò“ùÿÿÿÿ
+x
+java:S62015"bReplace this instanceof check and cast with 'instanceof TypeParameterElement typeparameterelement'(¦Æ§
+m
+java:S3776z"RRefactor this method to reduce its Cognitive Complexity from 46 to the 15 allowed.(È“Ñûıÿÿÿÿ
+^
+java:S3252‡"BUse static access with "com.squareup.javapoet.TypeName" for "get".(´¢ıÿÿÿÿ
+T	java:S106Ÿ"9Replace this use of System.out or System.err by a logger.(÷ø‚şûÿÿÿÿ
+O	java:S106ª"9Replace this use of System.out or System.err by a logger.(¾ä”¤
+^
+java:S3252°"BUse static access with "com.squareup.javapoet.TypeName" for "get".(ß Šùÿÿÿÿ
+^
+java:S3252·"BUse static access with "com.squareup.javapoet.TypeName" for "get".(ß Šùÿÿÿÿ
+T	java:S106Ï"9Replace this use of System.out or System.err by a logger.(Ã”¬çÿÿÿÿÿ
+O	java:S106è"9Replace this use of System.out or System.err by a logger.(ôö¸©
+O	java:S106ô"9Replace this use of System.out or System.err by a logger.(„•ìÊ
+[	java:S106‹"9Replace this use of System.out or System.err by a logger.(Ø‡Ûåüÿÿÿÿ8ªõõÏ­0
